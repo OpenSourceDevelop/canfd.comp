@@ -1,0 +1,23 @@
+# Laden des Moduls
+loadrt canfd
+
+# Hinzufügen zur Steuerungsschleife
+addf canfd.update servo-thread
+
+# Parameter setzen
+setp canfd.baud_rate 500000
+setp canfd.fd_mode 1
+
+# Senden eines Frames
+setp canfd.send_id 0x123
+setp canfd.send_dlc 8
+setp canfd.send_data-00 0x11
+setp canfd.send_data-01 0x22
+setp canfd.send_data-02 0x33
+setp canfd.send_data-03 0x44
+setp canfd.send_trigger 1
+
+# Empfangenes Frame auslesen
+net received-id canfd.receive_id => my_can_signal_id
+net received-dlc canfd.receive_dlc => my_can_signal_dlc
+net received-data canfd.receive_data => my_can_signal_data
