@@ -1,50 +1,51 @@
-# CAN-FD HAL Component for LinuxCNC (MCP2518 over SPI)
+# CAN-FD HAL Component for LinuxCNC (MCP2518FD on Raspberry Pi)
 
-The `canfd.comp` module enables communication with the MCP2518 CAN-FD controller via SPI in a LinuxCNC environment. It uses the SPI interface on the Raspberry Pi for direct communication with the MCP2518, supporting both standard CAN and CAN-FD frames.
+The `canfd.comp` module enables communication with the MCP2518FD CAN-FD controller via SPI on a Raspberry Pi. It integrates CAN-FD support into LinuxCNC, allowing for high-speed communication with peripherals like motor controllers, sensors, and other industrial devices.
 
 ---
 
 ## Features
 
-- **CAN-FD Support**: Communicates with MCP2518 using CAN-FD.
-- **Standard CAN Support**: Backward-compatible with standard CAN.
-- **Configurable SPI Interface**: Uses Raspberry Pi SPI pins for communication.
-- **Data Handling**: Send and receive data with up to 64 bytes per frame.
-- **Dynamic Configuration**: Adjustable through HAL pins and parameters.
+- **CAN-FD Support**: Communicates with the MCP2518FD over SPI, supporting CAN-FD frames with up to 64 bytes of data.
+- **Standard CAN Compatibility**: Backward-compatible with standard CAN.
+- **Interrupt-Based Processing**: Uses GPIO interrupts for efficient handling of received messages.
+- **Configurable Parameters**: Allows configuration of baud rate, SPI settings, and interrupt GPIO pin.
+- **Dynamic Data Handling**: Handles sending and receiving of CAN messages dynamically through HAL pins.
 
 ---
 
-## Prerequisites
+## Requirements
 
-1. **SPI Interface on Raspberry Pi**:
-   - Ensure the SPI interface is enabled using `raspi-config` or by modifying `/boot/config.txt`:
+1. **Raspberry Pi with SPI Enabled**:
+   - Enable the SPI interface on the Raspberry Pi via `raspi-config`:
      ```bash
      sudo raspi-config
      # Navigate to: Interface Options -> SPI -> Enable
      ```
-   - Or manually edit `/boot/config.txt`:
+   - Alternatively, add the following line to `/boot/config.txt`:
      ```bash
      dtparam=spi=on
      ```
 
-2. **MCP2518 Wiring**:
-   - Connect the MCP2518 to the Raspberry Pi SPI pins:
+2. **MCP2518FD Wiring**:
+   - Connect the MCP2518FD to the Raspberry Pi as follows:
      - `MISO` → GPIO 9 (SPI0 MISO)
      - `MOSI` → GPIO 10 (SPI0 MOSI)
      - `SCLK` → GPIO 11 (SPI0 SCLK)
      - `CS` → GPIO 8 (SPI0 CE0)
-     - `INT` → Any GPIO pin (for interrupts)
+     - `INT` → GPIO 25 (default, configurable in the module)
 
-3. **Install SPI Tools**:
-   - Install `spidev` and `can-utils`:
+3. **Install Dependencies**:
+   - Install the required tools and libraries for SPI and CAN:
      ```bash
-     sudo apt install python3-spidev can-utils
+     sudo apt update
+     sudo apt install can-utils python3-spidev
      ```
 
 ---
 
 ## Installation
 
-To compile and install the component:
+Compile and install the component:
 ```bash
 halcompile --install canfd.comp
