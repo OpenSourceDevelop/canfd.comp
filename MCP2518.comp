@@ -1,0 +1,112 @@
+component canfd "CAN-FD HAL Component for LinuxCNC";
+
+pin in bit send_trigger "Set to 1 to send a CAN message";
+pin in u32 send_id "CAN-ID of the message to send";
+pin in u8 send_dlc "DLC (Data Length Code) of the message";
+pin in u8 send_data[64] "Data bytes to send (up to 64 bytes for CAN FD)";
+
+pin out bit receive_ready "Set to 1 when a new CAN message is received";
+pin out u32 receive_id "CAN-ID of the received message";
+pin out u8 receive_dlc "DLC of the received message";
+pin out u8 receive_data[64] "Received data bytes (up to 64 bytes)";
+
+param rw float baud_rate = 500000 "CAN bus baud rate (in bits per second)";
+param rw bit fd_mode = 1 "Enable CAN-FD mode (1=FD, 0=Standard CAN)";
+
+variable int can_socket;
+variable int receive_length;
+variable unsigned char can_buffer[72]; /* 64 bytes data + CAN header */
+
+license "GPL";
+option extra_setup;
+
+function _setup
+{
+    /* Open CAN socket using libsocketcan */
+    struct sockaddr_can addr;
+    struct ifreq ifr;
+
+    can_socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+    if (can_socket < 0) {
+        rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to open CAN socket\n");
+        return -1;
+    }
+
+    /* Set interface */
+    strncpy(ifr.ifr_name, "can0", IFNAMSIZ - 1);
+    if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
+        rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to set CAN interface\n");
+        return -1;
+    }
+
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = ifr.ifr_ifindex;
+
+    if (bind(can_socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to bind CAN socket\n");
+        return -1;
+    }
+
+    /* Configure CAN FD mode */
+    struct can_ctrlmode mode;
+    mode.flags = CAN_CTRLMODE_FD;
+    mode.mask = CAN_CTRLMODE_FD;
+
+    if (fd_mode) {
+        if (ioctl(can_socket, CAN_RAW_FD_FRAMES, &mode) < 0) {
+            rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to enable FD mode\n");
+            return -1;
+        }
+    }
+
+    rtapi_print_msg(RTAPI_MSG_INFO, "CAN-FD: Initialized on interface can0\n");
+    return 0;
+}
+
+function update
+{
+    struct canfd_frame frame;
+    ssize_t nbytes;
+
+    /* Sending CAN frame */
+    if (send_trigger) {
+        frame.can_id = send_id;
+        frame.len = send_dlc;
+
+        /* Copy data */
+        for (int i = 0; i < send_dlc; i++) {
+            frame.data[i] = send_data[i];
+        }
+
+        nbytes = write(can_socket, &frame, sizeof(struct canfd_frame));
+        if (nbytes < 0) {
+            rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to send frame\n");
+        }
+
+        send_trigger = 0; /* Reset trigger */
+    }
+
+    /* Receiving CAN frame */
+    nbytes = read(can_socket, &frame, sizeof(struct canfd_frame));
+    if (nbytes > 0) {
+        receive_ready = 1;
+        receive_id = frame.can_id;
+        receive_dlc = frame.len;
+
+        /* Copy received data */
+        for (int i = 0; i < frame.len; i++) {
+            receive_data[i] = frame.data[i];
+        }
+    } else {
+        receive_ready = 0; /* No frame received */
+    }
+}
+
+function _cleanup
+{
+    if (can_socket >= 0) {
+        close(can_socket);
+    }
+}
+
+; end of file
