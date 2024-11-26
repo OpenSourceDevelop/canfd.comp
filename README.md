@@ -1,6 +1,6 @@
 # CAN-FD HAL Component for LinuxCNC
 
-The `canfd.comp` module enables communication with CAN-FD (Controller Area Network - Flexible Data-Rate) devices in a LinuxCNC environment. It uses the Linux SocketCAN interface for sending and receiving CAN-FD frames, making it suitable for integration with devices such as motor controllers, sensors, and other automation peripherals.
+The `canfd.comp` module enables communication with CAN-FD (Controller Area Network - Flexible Data-Rate) MCP2518 CAN-FD-Controller in a LinuxCNC environment. It uses the Linux SocketCAN interface for sending and receiving CAN-FD frames, making it suitable for integration with devices such as motor controllers, sensors, and other automation peripherals.
 
 ---
 
