@@ -6,21 +6,17 @@ addf canfd.update servo-thread
 
 # Configure parameters
 setp canfd.baud_rate 500000     # Set CAN baud rate to 500 kbps
-setp canfd.fd_mode 1            # Enable CAN-FD mode (set to 0 for standard CAN)
+setp canfd.fd_mode 1            # Enable CAN-FD mode
+setp canfd.int_pin 25           # Set interrupt GPIO pin
 
 # Sending a CAN frame
 setp canfd.send_id 0x123        # Set the CAN ID
 setp canfd.send_dlc 8           # Set Data Length Code (DLC)
 setp canfd.send_data-00 0x11    # Set data bytes
 setp canfd.send_data-01 0x22
-setp canfd.send_data-02 0x33
-setp canfd.send_data-03 0x44
 setp canfd.send_trigger 1       # Trigger to send the message
 
 # Receiving a CAN frame
 net can-receive-id canfd.receive_id => my_can_id_signal
 net can-receive-dlc canfd.receive_dlc => my_can_dlc_signal
 net can-receive-data canfd.receive_data => my_can_data_signal
-
-# Handle received message
-net can-receive-ready canfd.receive_ready => my_receive_handler
