@@ -1,10 +1,24 @@
-#include <linux/spi/spidev.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
+component canfd "CAN-FD HAL Component for MCP2518FD on Raspberry Pi";
+
+pin in bit send_trigger "Set to 1 to send a CAN message";
+pin in u32 send_id "CAN-ID of the message to send";
+pin in u8 send_dlc "DLC (Data Length Code) of the message";
+pin in u8 send_data[64] "Data bytes to send (up to 64 bytes for CAN FD)";
+
+pin out bit receive_ready "Set to 1 when a new CAN message is received";
+pin out u32 receive_id "CAN-ID of the received message";
+pin out u8 receive_dlc "DLC of the received message";
+pin out u8 receive_data[64] "Received data bytes (up to 64 bytes)";
+
+param rw float baud_rate = 500000 "CAN bus baud rate (in bits per second)";
+param rw bit fd_mode = 1 "Enable CAN-FD mode (1=FD, 0=Standard CAN)";
+param rw u8 int_pin = 25 "GPIO pin for MCP2518FD interrupt";
 
 variable int spi_fd;
-variable int int_pin = 25; /* GPIO Pin for MCP2518FD interrupt */
+variable int gpio_fd;
+
+license "GPL";
+option extra_setup;
 
 function _setup
 {
@@ -15,7 +29,7 @@ function _setup
         return -1;
     }
 
-    /* SPI mode and settings */
+    /* Configure SPI settings */
     uint8_t mode = SPI_MODE_0;
     uint32_t speed = 10000000; /* 10 MHz */
     if (ioctl(spi_fd, SPI_IOC_WR_MODE, &mode) < 0) {
@@ -27,15 +41,83 @@ function _setup
         return -1;
     }
 
+    /* Configure GPIO for interrupt */
+    char gpio_path[64];
+    sprintf(gpio_path, "/sys/class/gpio/gpio%d/value", int_pin);
+    gpio_fd = open(gpio_path, O_RDONLY);
+    if (gpio_fd < 0) {
+        rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to configure GPIO interrupt\n");
+        return -1;
+    }
+
     /* Initialize MCP2518FD registers */
     uint8_t reset_cmd[2] = {0xC0, 0x00}; /* RESET command */
     write(spi_fd, reset_cmd, 2);
     usleep(10000); /* Wait for reset to complete */
 
-    /* Configure baud rate and CAN-FD mode */
+    /* Configure MCP2518FD baud rate and CAN-FD mode */
     uint8_t config_cmd[4] = {0x02, 0x00, 0x01, 0x00}; /* Example config */
     write(spi_fd, config_cmd, 4);
 
     rtapi_print_msg(RTAPI_MSG_INFO, "CAN-FD: MCP2518FD initialized\n");
     return 0;
 }
+
+function update
+{
+    struct canfd_frame frame;
+    ssize_t nbytes;
+
+    /* Check for interrupt */
+    char gpio_value;
+    lseek(gpio_fd, 0, SEEK_SET);
+    read(gpio_fd, &gpio_value, 1);
+    if (gpio_value != '1') {
+        return; /* No interrupt, return early */
+    }
+
+    /* Sending CAN frame */
+    if (send_trigger) {
+        frame.can_id = send_id;
+        frame.len = send_dlc;
+
+        /* Copy data */
+        for (int i = 0; i < send_dlc; i++) {
+            frame.data[i] = send_data[i];
+        }
+
+        nbytes = write(spi_fd, &frame, sizeof(frame));
+        if (nbytes < 0) {
+            rtapi_print_msg(RTAPI_MSG_ERR, "CAN-FD: Failed to send frame\n");
+        }
+
+        send_trigger = 0; /* Reset trigger */
+    }
+
+    /* Receiving CAN frame */
+    nbytes = read(spi_fd, &frame, sizeof(frame));
+    if (nbytes > 0) {
+        receive_ready = 1;
+        receive_id = frame.can_id;
+        receive_dlc = frame.len;
+
+        /* Copy received data */
+        for (int i = 0; i < frame.len; i++) {
+            receive_data[i] = frame.data[i];
+        }
+    } else {
+        receive_ready = 0; /* No frame received */
+    }
+}
+
+function _cleanup
+{
+    if (spi_fd >= 0) {
+        close(spi_fd);
+    }
+    if (gpio_fd >= 0) {
+        close(gpio_fd);
+    }
+}
+
+; end of file
